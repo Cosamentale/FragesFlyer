@@ -264,19 +264,18 @@ const displayShaderSource = `
     uniform sampler2D uTexture;
     uniform sampler2D uTex;
     uniform vec2 resolution;
-    float sv(vec2 uv){return texture2D(uTexture, uv).z;}
+    float sv(vec2 uv){return texture2D(uTexture, uv).x;}
 vec2 g(vec2 uv,float e){
 return vec2(sv(uv+vec2(e,0.))-sv(uv-vec2(e,0.)),sv(uv+vec2(0.,e))-sv(uv-vec2(0.,e)))/e;}
 
     void main () {
       vec2 uv = vUv;
-      float e = 0.01;
-     vec3 n = vec3(g(uv,0.001),250.);
+     vec3 n = vec3(g(uv,0.002),250.);
   n=normalize(n);
   vec3 li =vec3(0.5,0.5,1.);
   vec3 li2 =vec3(-0.5,-0.5,1.);
   float sha=clamp(dot(n,li),0.,1.0);
-    float sha2=1.-clamp(dot(n,li2),0.,1.0);
+  float sha2=1.-clamp(dot(n,li2),0.,1.0);
         vec2 uv2 = vec2(uv.x,1.-uv.y)+n.xy*0.1;
         vec3 c2 = texture2D(uTex,uv2).xyz;
         gl_FragColor = vec4(c2*sha+sha2,1.);
@@ -296,20 +295,18 @@ const splatShader = compileShader(gl.FRAGMENT_SHADER, `
   void main () {
       vec2 p = vUv - point.xy;
       p.x *= aspectRatio;
-      vec3 diff = vec3(0.004*vec2(1.,aspectRatio),0.);
+      vec3 diff = vec3(0.001*vec2(1.,aspectRatio),0.);
       float mp =smoothstep(0.1,0.,length(p));
-      float mp2 =smoothstep(.3,0.,length(p));
       vec4 center =texture2D(uTarget, vUv);
   float top = texture2D(uTarget, vUv-diff.zy).x;
   float left = texture2D(uTarget, vUv-diff.xz).x;
   float right = texture2D(uTarget, vUv+diff.xz).x;
   float bottom = texture2D(uTarget, vUv+diff.zy).x;
   float red = -(center.y-0.5)*2.+(top+left+right+bottom-2.);
-  red += mp;red *= 0.995;
-  //red *= step(0.1,iTime);
+  red += mp;red *= 0.99;
   red = 0.5 +red*0.5;
   red = clamp(red,0.,1.);
-      gl_FragColor = vec4(red,center.x,mix(0.55,0.9,mix(red,0.5,mp2)), 1.0);
+      gl_FragColor = vec4(red,center.x,0., 1.0);
     }
 `);
 
