@@ -7,7 +7,7 @@ const canvas = document.getElementsByTagName('canvas')[0];
 resizeCanvas();
 
 let config = {
-    DYE_RESOLUTION: 64,
+    DYE_RESOLUTION: 1024,
     PAUSED: false,
     BACK_COLOR: { r: 0, g: 0, b: 0 },
     TRANSPARENT: false,
@@ -262,48 +262,54 @@ const displayShaderSource = `
     precision highp sampler2D;
     varying vec2 vUv;
     uniform sampler2D uTexture;
-    //uniform float time;
+    uniform sampler2D uTex;
     uniform vec2 resolution;
+    float sv(vec2 uv){return texture2D(uTexture, uv).z;}
+vec2 g(vec2 uv,float e){
+return vec2(sv(uv+vec2(e,0.))-sv(uv-vec2(e,0.)),sv(uv+vec2(0.,e))-sv(uv-vec2(0.,e)))/e;}
+
     void main () {
       vec2 uv = vUv;
-        float c = texture2D(uTexture,uv).r;
-        gl_FragColor = vec4(c);
+      float e = 0.01;
+     vec3 n = vec3(g(uv,0.001),250.);
+  n=normalize(n);
+  vec3 li =vec3(0.5,0.5,1.);
+  vec3 li2 =vec3(-0.5,-0.5,1.);
+  float sha=clamp(dot(n,li),0.,1.0);
+    float sha2=1.-clamp(dot(n,li2),0.,1.0);
+        vec2 uv2 = vec2(uv.x,1.-uv.y)+n.xy*0.1;
+        vec3 c2 = texture2D(uTex,uv2).xyz;
+        gl_FragColor = vec4(c2*sha+sha2,1.);
     }
 `;
 
 
 const splatShader = compileShader(gl.FRAGMENT_SHADER, `
-    precision highp float;
-    precision highp sampler2D;
+  precision highp float;
+  precision highp sampler2D;
 
-    varying vec2 vUv;
-    uniform float time;
-    uniform sampler2D uTarget;
-    uniform vec2 resolution;
-    uniform vec2 mouse;
-    mat2 rot(float t){float c = cos(t); float s = sin(t); return mat2(c,-s,s,c);}
-    void main () {
-        vec2 uv = vUv;
-   vec2 mo = mouse;
-   float d1 =distance(uv,mo);
-   float n1 = smoothstep(0.05,0.,d1)*5.;
-   vec2 pos = uv*resolution;
-   float ang = (atan(mo.x,mo.y))*3.14;
-     vec2 p = vec2(cos(ang),sin(ang));
-      p *= rot(ang);
-      p *= 4.;
-      pos = pos+p;
-      float ro =0.;
-      float da =  texture2D(uTarget,uv).x*20.;
-      ro+=dot( texture2D(uTarget,fract((pos+p)/resolution)).xy-0.5,p.yx);
-       vec2 v =p.yx*ro/dot(p,p)*da;
-       p *= rot(ang);
-       p *= 4.;
-       ro+=dot( texture2D(uTarget,fract((pos+p)/resolution)).xy-0.5,p.yx);
-       v += p.yx*ro/dot(p,p)*da;
-   float t1 =  texture2D(uTarget,fract((pos+v*vec2(-2,2))/resolution.xy)).x;
-   float r1 =t1*0.985+n1;
-        gl_FragColor = vec4(r1);
+  varying vec2 vUv;
+  uniform sampler2D uTarget;
+  uniform float aspectRatio;
+  uniform vec2 point;
+
+  void main () {
+      vec2 p = vUv - point.xy;
+      p.x *= aspectRatio;
+      vec3 diff = vec3(0.004*vec2(1.,aspectRatio),0.);
+      float mp =smoothstep(0.1,0.,length(p));
+      float mp2 =smoothstep(.3,0.,length(p));
+      vec4 center =texture2D(uTarget, vUv);
+  float top = texture2D(uTarget, vUv-diff.zy).x;
+  float left = texture2D(uTarget, vUv-diff.xz).x;
+  float right = texture2D(uTarget, vUv+diff.xz).x;
+  float bottom = texture2D(uTarget, vUv+diff.zy).x;
+  float red = -(center.y-0.5)*2.+(top+left+right+bottom-2.);
+  red += mp;red *= 0.995;
+  //red *= step(0.1,iTime);
+  red = 0.5 +red*0.5;
+  red = clamp(red,0.,1.);
+      gl_FragColor = vec4(red,center.x,mix(0.55,0.9,mix(red,0.5,mp2)), 1.0);
     }
 `);
 
@@ -342,7 +348,7 @@ let dye;
 
 //const sunraysProgram         = new Program(baseVertexShader, sunraysShader);
 const splatProgram           = new Program(baseVertexShader, splatShader);
-
+let fragesTexture = createTextureAsync('affiche.png');
 
 const displayMaterial = new Material(baseVertexShader, displayShaderSource);
 
@@ -430,7 +436,37 @@ function createDoubleFBO (w, h, internalFormat, format, type, param) {
         }
     }
 }
+function createTextureAsync (url) {
+    let texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, 1, 1, 0, gl.RGB, gl.UNSIGNED_BYTE, new Uint8Array([255, 255, 255]));
 
+    let obj = {
+        texture,
+        width: 1,
+        height: 1,
+        attach (id) {
+            gl.activeTexture(gl.TEXTURE0 + id);
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            return id;
+        }
+    };
+
+    let image = new Image();
+    image.onload = () => {
+        obj.width = image.width;
+        obj.height = image.height;
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, image);
+    };
+    image.src = url;
+
+    return obj;
+}
 function updateKeywords () {
     let displayKeywords = [];
   //  if (config.SUNRAYS) displayKeywords.push("SUNRAYS");
@@ -448,8 +484,8 @@ function update () {
     if (resizeCanvas())
         initFramebuffers();
 //    updateColors(dt);
-    applyInputs();
-    dildo();
+  //  applyInputs();
+    splat();
   /*  if (!config.PAUSED)
         step(dt);*/
     render(null);
@@ -475,11 +511,11 @@ function resizeCanvas () {
     return false;
 }
 
-function applyInputs () {
+/*function applyInputs () {
 
   //  pointers.forEach(p => {splatPointer();});
   splatPointer( pointers[0]);
-}
+}*/
 
 function render (target) {
 
@@ -494,6 +530,7 @@ function drawDisplay (target) {
     displayMaterial.bind();
   //  gl.uniform1f(displayMaterial.uniforms.time, performance.now() / 1000);
   gl.uniform2f(displayMaterial.uniforms.resolution, canvas.width , canvas.height);
+  gl.uniform1i(displayMaterial.uniforms.uTex, fragesTexture.attach(1));
 
     blit(target);
 }
@@ -505,17 +542,17 @@ function drawDisplay (target) {
     blit(destination);
 }*/
 
-function splatPointer (pointer) {
+/*function splatPointer (pointer) {
+    let dx = pointer.deltaX * config.SPLAT_FORCE;
+    let dy = pointer.deltaY * config.SPLAT_FORCE;
+    splat(pointer.texcoordX, pointer.texcoordY, dx, dy, pointer.color);
+}*/
 
-    splat(pointer.texcoordX, pointer.texcoordY);
-}
-
-function splat (x, y) {
-  let dyeRes = getResolution(config.DYE_RESOLUTION);
+function splat () {
     splatProgram.bind();
-    gl.uniform1f(splatProgram.uniforms.time, performance.now() / 1000);
-    gl.uniform2f(splatProgram.uniforms.resolution, dyeRes.width , dyeRes.height);
-    gl.uniform2f(splatProgram.uniforms.mouse, x, y);
+
+    gl.uniform1f(splatProgram.uniforms.aspectRatio, canvas.width / canvas.height);
+    gl.uniform2f(splatProgram.uniforms.point,pointers[0].texcoordX, pointers[0].texcoordY);
     gl.uniform1i(splatProgram.uniforms.uTarget, dye.read.attach(0));
     blit(dye.write);
     dye.swap();
