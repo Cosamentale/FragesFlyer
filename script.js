@@ -277,8 +277,10 @@ return vec2(sv(uv+vec2(e,0.))-sv(uv-vec2(e,0.)),sv(uv+vec2(0.,e))-sv(uv-vec2(0.,
   float sha=clamp(dot(n,li),0.,1.0);
   float sha2=1.-clamp(dot(n,li2),0.,1.0);
         vec2 uv2 = vec2(uv.x,1.-uv.y)+n.xy*0.1;
-        vec3 c2 = texture2D(uTex,uv2).xyz;
-        gl_FragColor = vec4(c2*sha+sha2,1.);
+        float c2 = texture2D(uTex,uv2+n.x*0.025).x;
+        float c1 = texture2D(uTex,uv2).y;
+        float c3 = texture2D(uTex,uv2-n.x*0.025).z;
+        gl_FragColor = vec4(vec3(c2,c1,c3)*sha+sha2,1.);
     }
 `;
 
@@ -296,7 +298,7 @@ const splatShader = compileShader(gl.FRAGMENT_SHADER, `
       vec2 p = vUv - point.xy;
       p.x *= aspectRatio;
       vec3 diff = vec3(0.001*vec2(1.,aspectRatio),0.);
-      float mp =smoothstep(0.1,0.,length(p));
+      float mp =smoothstep(0.09,0.,length(p));
       vec4 center =texture2D(uTarget, vUv);
   float top = texture2D(uTarget, vUv-diff.zy).x;
   float left = texture2D(uTarget, vUv-diff.xz).x;
