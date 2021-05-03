@@ -7,7 +7,7 @@ const canvas = document.getElementsByTagName('canvas')[0];
 resizeCanvas();
 
 let config = {
-    DYE_RESOLUTION: 1024,
+    DYE_RESOLUTION: 512,
     PAUSED: false,
     BACK_COLOR: { r: 0, g: 0, b: 0 },
     TRANSPARENT: false,
@@ -267,7 +267,12 @@ const displayShaderSource = `
     float sv(vec2 uv){return texture2D(uTexture, uv).x;}
 vec2 g(vec2 uv,float e){
 return vec2(sv(uv+vec2(e,0.))-sv(uv-vec2(e,0.)),sv(uv+vec2(0.,e))-sv(uv-vec2(0.,e)))/e;}
+lowp float RGBToL(lowp vec3 f){lowp float g=min(min(f.r,f.g),f.b),r=max(max(f.r,f.g),f.b);return(r+g)/2.;}lowp vec3 RGBToHSL(lowp vec3 f){lowp vec3 i;lowp float g=min(min(f.r,f.g),f.b),r=max(max(f.r,f.g),f.b),m=r-g;i.b=(r+g)/2.;if(m==0.)i.r=0.,i.g=0.;else{if(i.b<.5)i.g=m/(r+g);else i.g=m/(2.-r-g);lowp float v=((r-f.r)/6.+m/2.)/m,b=((r-f.g)/6.+m/2.)/m,H=((r-f.b)/6.+m/2.)/m;if(f.r==r)i.r=H-b;else if(f.g==r)i.r=1./3.+v-H;else if(f.b==r)i.r=2./3.+b-v;if(i.r<0.)i.r+=1.;else if(i.r>1.)i.r-=1.;}return i;}lowp float HueToRGB(lowp float r,lowp float f,lowp float i){if(i<0.)i+=1.;else if(i>1.)i-=1.;lowp float l;if(6.*i<1.)l=r+(f-r)*6.*i;else if(2.*i<1.)l=f;else if(3.*i<2.)l=r+(f-r)*(2./3.-i)*6.;else l=r;return l;}lowp vec3 HSLToRGB(lowp vec3 f){lowp vec3 i;if(f.g==0.)i=vec3(f.b);else{lowp float l;if(f.b<.5)l=f.b*(1.+f.g);else l=f.b+f.g-f.g*f.b;lowp float r=2.*f.b-l;i.r=HueToRGB(r,l,f.r+1./3.);i.g=HueToRGB(r,l,f.r);i.b=HueToRGB(r,l,f.r-1./3.);}return i;}
 
+float ov(float base, float blend) {
+return base<0.5?(2.0*base*blend):(1.0-2.0*(1.0-base)*(1.0-blend));}
+vec3 ov3(vec3 a, vec3 b){
+return vec3(ov(a.x,b.x),ov(a.y,b.y),ov(a.z,b.z));}
     void main () {
       vec2 uv = vUv;
      vec3 n = vec3(g(uv,0.002),250.);
@@ -280,7 +285,31 @@ return vec2(sv(uv+vec2(e,0.))-sv(uv-vec2(e,0.)),sv(uv+vec2(0.,e))-sv(uv-vec2(0.,
         float c2 = texture2D(uTex,uv2+n.x*0.025).x;
         float c1 = texture2D(uTex,uv2).y;
         float c3 = texture2D(uTex,uv2-n.x*0.025).z;
-        gl_FragColor = vec4(vec3(c2,c1,c3)*sha+sha2,1.);
+        vec2 p2 = uv;
+        float k2 = mix(0.55,0.9,texture2D(uTexture,uv).x);
+        p2 = 5.*p2;
+        vec4 k3 = k2 +sin(2.*sin(vec4(k2)*10.)+p2.yxyy-p2.yyxy*.5)/12.;
+            lowp float lightness = RGBToL(k3.rgb);
+            float s1 = 0.144;
+            float s2 = -0.312;
+            float s3 = -0.144;
+            float m1 = 0.232;
+            float m2 = -0.192;
+            float m3 = 0.128;
+            float l1 = -0.136;
+            float l2 = 0.096;
+            float l3 = 0.136;
+            lowp vec3 s = smoothstep(1./1.5,0.,lightness)*(vec3(s1,s2,s3));
+            lowp vec3 m = smoothstep(0.,1./3.,lightness)*smoothstep(1.,2./3.,lightness)*(vec3(m1,m2,m3));
+            lowp vec3 l = smoothstep(2./3.,1.,lightness)*(vec3(l1,l2,l3));
+            lowp vec3 newColor = k3.xyz+s+m+l ;
+                newColor = clamp(newColor, 0.0, 1.0);
+            lowp vec3 newHSL = clamp(RGBToHSL(newColor),0.,1.);
+                lowp float oldLum = RGBToL(k3.xyz);
+                k3.xyz = HSLToRGB(vec3(newHSL.x, newHSL.y, oldLum));
+                vec3 mask = mix(vec3(0.,0.,0.368),vec3(-3.,0.12,0.12),distance((-1.+2.*uv)*0.464,vec2(0.)));
+            vec3 k4 =ov3(clamp(k3.xyz,0.,1.),mask);
+        gl_FragColor = vec4(mix(k4,vec3(c2,c1,c3),max(step(0.25,length(uv2.x-0.5)),step(0.25,length(uv2.y-0.5))))*sha+sha2,1.);
     }
 `;
 
@@ -297,7 +326,7 @@ const splatShader = compileShader(gl.FRAGMENT_SHADER, `
   void main () {
       vec2 p = vUv - point.xy;
       p.x *= aspectRatio;
-      vec3 diff = vec3(0.001*vec2(1.,aspectRatio),0.);
+      vec3 diff = vec3(0.002*vec2(1.,aspectRatio),0.);
       float mp =smoothstep(0.09,0.,length(p));
       vec4 center =texture2D(uTarget, vUv);
   float top = texture2D(uTarget, vUv-diff.zy).x;
