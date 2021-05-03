@@ -265,11 +265,11 @@ const displayShaderSource = `
     uniform sampler2D uTex;
     uniform vec2 resolution;
     float sv(vec2 uv){return texture2D(uTexture, uv).x;}
-vec2 g(vec2 uv,float e){
-return vec2(sv(uv+vec2(e,0.))-sv(uv-vec2(e,0.)),sv(uv+vec2(0.,e))-sv(uv-vec2(0.,e)))/e;}
+vec2 g(vec2 uv,float e){float v1 = sv(uv);
+return vec2(v1-sv(uv-vec2(e,0.)),v1-sv(uv-vec2(0.,e)))/e;}
     void main () {
       vec2 uv = vUv;
-     vec3 n = vec3(g(uv,0.002),250.);
+     vec3 n = vec3(g(uv,0.002)*2.,250.);
   n=normalize(n);
   vec3 li =vec3(0.5,0.5,1.);
   vec3 li2 =vec3(-0.5,-0.5,1.);
@@ -281,7 +281,7 @@ return vec2(sv(uv+vec2(e,0.))-sv(uv-vec2(e,0.)),sv(uv+vec2(0.,e))-sv(uv-vec2(0.,
         //float c3 = texture2D(uTex,uv2-n.x*0.025).z;
         vec3 c = texture2D(uTex,uv2).xyz;
         float cb = mix(0.55,0.9,texture2D(uTexture,uv).x);
-        vec3 b1 = mix(vec3(cb),3.*abs(1.-2.*fract(0.4-cb+vec3(0.,-1./3.,1./3.)))-1.,0.5)+cb-0.6;
+        vec3 b1 = mix(vec3(cb),3.*abs(1.-2.*fract(0.4-cb+vec3(0.,-1./3.,1./3.)))-1.,1.-cb*0.8)+cb-0.6;
         gl_FragColor = vec4(mix(b1,c,max(step(0.26,length(uv2.x-0.5)),step(0.26,length(uv2.y-0.5))))*sha+sha2,1.);
     }
 `;
