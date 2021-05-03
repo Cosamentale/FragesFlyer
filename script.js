@@ -264,34 +264,10 @@ const displayShaderSource = `
     uniform sampler2D uTexture;
     //uniform float time;
     uniform vec2 resolution;
-    float character(float n, vec2 p)
-  {
-      p = floor(p*vec2(4.0, -4.0) + 2.5);
-      if (clamp(p.x, 0.0, 4.0) == p.x && clamp(p.y, 0.0, 4.0) == p.y
-       && int(mod(n/exp2(p.x + 5.0*p.y), 2.0)) == 1) return 1.0;
-      return 0.0;
-  }
     void main () {
       vec2 uv = vUv;
-      vec2 pix = uv *resolution;
-      float val =.0125*resolution.x;
-      float val2 = val*2.;
-        float c = texture2D(uTexture,floor(pix/val2)*val2/resolution).r;
-        //float c = texture2D(uTexture,uv).r;
-        float n = 0.;
-    if (c > 0.1) n = 4096.;
-    if (c > 0.2) n = 65600.;
-    if (c > 0.3) n = 4329604.;
-    if (c > 0.4) n = mix(1118480.,17043521.,step(0.5,uv.x));
-    if (c > 0.5) n = mix(12718220.,6426758.,step(0.5,uv.x));
-    if (c > 0.6) n = 332772.;
-    if (c > 0.7) n = 15255086.;
-    if (c > 0.8) n = 15252014.;
-    if (c > 0.9) n = 11512810.;
-
-    vec2 p = mod(pix/val, 2.0) - vec2(1.0);
-    float col = character(n, p);
-        gl_FragColor = vec4(vec3(col),1.);
+        float c = texture2D(uTexture,uv).r;
+        gl_FragColor = vec4(c);
     }
 `;
 
