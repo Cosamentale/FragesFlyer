@@ -276,10 +276,10 @@ return vec2(v1-sv(uv-vec2(e,0.)),v1-sv(uv-vec2(0.,e)))/e;}
   float sha=clamp(dot(n,li),0.,1.0);
   float sha2=1.-clamp(dot(n,li2),0.,1.0);
         vec2 uv2 = vec2(uv.x,1.-uv.y)+n.xy*0.1;
-        vec2 c = texture2D(uTex,uv2).xy;
+        vec3 c = texture2D(uTex,uv2).xyz;
         float cb = mix(0.55,0.9,texture2D(uTexture,uv).x);
         vec3 b1 = mix(vec3(cb),3.*abs(1.-2.*fract(0.4-cb+vec3(0.,-1./3.,1./3.)))-1.,1.-cb*0.8)+cb-0.6;
-        gl_FragColor = vec4(mix(b1,vec3(c.x),c.y)*sha+sha2,1.);
+        gl_FragColor = vec4((mix(b1,vec3(c.x),c.y)*sha+sha2)*c.z,1.);
     }
 `;
 
